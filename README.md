@@ -28,8 +28,8 @@ console        3 566500 0
 
 * Linux on x86-64, kernel 5.6 or newer (for `openat2` and
   `PTRACE_GET_SYSCALL_INFO`)
-* gcc, make, and a Go compiler: **gccgo** (the default; `apt install
-  gccgo`) or the standard Go toolchain, 1.22 or newer
+* gcc, make, and Go 1.22 or newer. gccgo is supported as an option
+  once a release implements Go 1.21 (see below)
 * ptrace must be allowed. A process can always trace its own children
   unless a seccomp profile or LSM blocks `ptrace` (in some containers you
   may need `--cap-add=SYS_PTRACE` or a relaxed seccomp profile).
@@ -37,8 +37,8 @@ console        3 566500 0
 ## Usage
 
 ```
-make                     # builds ./xv6-isor (with gccgo) and the guest root ./fs
-make GOCOMPILER=gc       # same, but build the sentry with the standard go tool
+make                     # builds ./xv6-isor and the guest root ./fs
+make GOCOMPILER=gccgo    # same, but build the sentry with gccgo
 ./xv6-isor fs            # boot /init (which starts /sh) with ./fs as "/"
 ./xv6-isor -strace fs    # same, logging every guest system call
 make test                # end-to-end tests (test.sh + user/isortest.c)
@@ -58,17 +58,18 @@ Ctrl-D ends the shell and init starts a new one. Press Ctrl-C to stop the
 sentry. If standard input is a file or pipe, the sentry exits once the
 input runs out.
 
-The sentry builds with gccgo by default. If `gccgo` isn't installed,
-`make` prints a warning and uses the `go` tool instead. `GCCGO` and
+By default the sentry is built with the standard `go` tool.
+`make GOCOMPILER=gccgo` builds it with gccgo instead, and `GCCGO` and
 `GCCGOFLAGS` select a different gccgo binary or different flags. After
 changing `GOCOMPILER`, run `make clean` so the sentry is rebuilt. The
-sentry makes its ptrace requests as raw system calls, because libgo's
-ptrace wrappers are incomplete and misreport errors.
+sentry makes its ptrace requests as raw system calls rather than through
+package `syscall`, because libgo's ptrace wrappers are incomplete and
+misreport errors. That way both compilers produce the same program.
 
-**Known issue:** the sentry uses `atomic.Bool` (Go 1.19) and the `min`
+**gccgo status:** the sentry uses `atomic.Bool` (Go 1.19) and the `min`
 builtin (Go 1.21). Every released gccgo, up to and including GCC 15,
-implements Go 1.18, so the gccgo build currently fails. Build with
-`make GOCOMPILER=gc` until gccgo catches up.
+implements Go 1.18, so `GOCOMPILER=gccgo` doesn't work yet. It should
+start working, with no changes here, once a gccgo release catches up.
 
 ## Listing processes: `pslist`
 
