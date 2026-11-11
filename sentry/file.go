@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"sync"
+	"sync/atomic"
 )
 
 // Limits and flags, from xv6's param.h, fcntl.h, stat.h and fs.h.
@@ -118,7 +119,7 @@ func (pi *Pipe) close(writable bool) {
 }
 
 // write is pipewrite(). It returns the number of bytes written or -1.
-func (pi *Pipe) write(killed *atomicBool, buf []byte) int64 {
+func (pi *Pipe) write(killed *atomic.Bool, buf []byte) int64 {
 	pi.mu.Lock()
 	defer pi.mu.Unlock()
 	for i := range buf {
@@ -140,7 +141,7 @@ func (pi *Pipe) write(killed *atomicBool, buf []byte) int64 {
 }
 
 // read is piperead(). It returns the bytes read, or nil and -1.
-func (pi *Pipe) read(killed *atomicBool, n int) ([]byte, int64) {
+func (pi *Pipe) read(killed *atomic.Bool, n int) ([]byte, int64) {
 	pi.mu.Lock()
 	defer pi.mu.Unlock()
 	for pi.nread == pi.nwrite && pi.writeopen { // pipe is empty

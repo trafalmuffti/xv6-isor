@@ -4,7 +4,6 @@ package main
 // does not provide.
 
 import (
-	"sync/atomic"
 	"syscall"
 	"unsafe"
 )
@@ -80,18 +79,4 @@ func ptraceGetRegs(pid int, regs *syscall.PtraceRegs) error {
 
 func ptraceSetRegs(pid int, regs *syscall.PtraceRegs) error {
 	return ptrace(syscall.PTRACE_SETREGS, pid, 0, uintptr(unsafe.Pointer(regs)))
-}
-
-// atomicBool is a minimal atomic.Bool (which needs Go 1.19; gccgo 13
-// provides the Go 1.18 standard library).
-type atomicBool struct{ v int32 }
-
-func (b *atomicBool) Load() bool { return atomic.LoadInt32(&b.v) != 0 }
-
-func (b *atomicBool) Store(val bool) {
-	var i int32
-	if val {
-		i = 1
-	}
-	atomic.StoreInt32(&b.v, i)
 }

@@ -28,6 +28,7 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"sync/atomic"
 	"syscall"
 	"time"
 )
@@ -47,8 +48,8 @@ type Proc struct {
 	name   string
 	parent *Proc
 	state  procState
-	killed atomicBool // read by pipe goroutines
-	cwd    string     // absolute guest path
+	killed atomic.Bool // read by pipe goroutines
+	cwd    string      // absolute guest path
 	ofile  [nofile]*File
 	brk    uint64 // current program break; 0 = not yet known
 

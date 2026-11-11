@@ -61,10 +61,14 @@ input runs out.
 The sentry builds with gccgo by default. If `gccgo` isn't installed,
 `make` prints a warning and uses the `go` tool instead. `GCCGO` and
 `GCCGOFLAGS` select a different gccgo binary or different flags. After
-changing `GOCOMPILER`, run `make clean` so the sentry is rebuilt. The code
-sticks to the Go 1.18 standard library that gccgo 13 provides, and makes
-its ptrace requests as raw system calls, so both compilers produce the
-same program.
+changing `GOCOMPILER`, run `make clean` so the sentry is rebuilt. The
+sentry makes its ptrace requests as raw system calls, because libgo's
+ptrace wrappers are incomplete and misreport errors.
+
+**Known issue:** the sentry uses `atomic.Bool` (Go 1.19) and the `min`
+builtin (Go 1.21). Every released gccgo, up to and including GCC 15,
+implements Go 1.18, so the gccgo build currently fails. Build with
+`make GOCOMPILER=gc` until gccgo catches up.
 
 ## Listing processes: `pslist`
 
