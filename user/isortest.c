@@ -6,6 +6,8 @@
 #include "user.h"
 #include "fcntl.h"
 #include "fs.h"
+#include "param.h"
+#include "procinfo.h"
 
 static int failures;
 
@@ -177,6 +179,51 @@ sandboxtest(void)
   CHECK(open("escape/etc/passwd", O_RDONLY) == -1, "symlinks can't leave the root");
 }
 
+struct procinfo pinfo[NPROC];
+
+struct procinfo*
+findproc(int n, int pid)
+{
+  int i;
+  for(i = 0; i < n; i++)
+    if(pinfo[i].pid == pid)
+      return &pinfo[i];
+  return 0;
+}
+
+void
+procinfotest(void)
+{
+  struct procinfo *pi;
+  int n, pid;
+
+  n = getprocs(pinfo, NPROC);
+  CHECK(n >= 3, "getprocs lists processes");
+  pi = findproc(n, getpid());
+  CHECK(pi && strcmp(pi->name, "isortest") == 0 && pi->state == PI_RUNNING &&
+        pi->ofile[1] == 'c', "getprocs describes the caller");
+  CHECK(pinfo[0].pid == 1 && pinfo[0].state == PI_SLEEPING &&
+        strcmp(pinfo[0].wchan, "wait") == 0, "init is sleeping in wait");
+
+  pid = fork();
+  if(pid == 0){
+    for(;;)
+      ;
+  }
+  sleep(30);
+  n = getprocs(pinfo, NPROC);
+  pi = findproc(n, pid);
+  CHECK(pi && pi->ppid == getpid() && pi->state == PI_RUNNING && pi->cputicks > 0,
+        "spinning child shows up using CPU");
+  kill(pid);
+  wait();
+  n = getprocs(pinfo, NPROC);
+  CHECK(findproc(n, pid) == 0, "reaped child is gone");
+
+  CHECK(getprocs(pinfo, 1) == 1, "getprocs respects max");
+  CHECK(getprocs((struct procinfo*)1, NPROC) == -1, "getprocs with bad pointer fails");
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -186,6 +233,7 @@ main(int argc, char *argv[])
   pipetest();
   proctest();
   sandboxtest();
+  procinfotest();
   if(failures)
     printf(1, "isortest: %d FAILED\n", failures);
   else

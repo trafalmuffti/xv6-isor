@@ -23,6 +23,7 @@ ls d
 cat escape/passwd
 sleep 10
 forktest
+pslist
 isortest
 SCRIPT
 )
@@ -51,6 +52,8 @@ expect "nested"              "redirection, mkdir, chdir"
 expect "ls: cannot open d"   "rm of file and directory"
 expect "cat: cannot open escape/passwd" "symlink cannot escape root"
 expect "fork test OK"        "forktest"
+expect "PID PPID STATE"      "pslist header"
+expect "1   0    sleep  wait" "pslist shows init waiting"
 expect "ALL TESTS PASSED"    "isortest"
 reject "FAIL"                "no isortest failures"
 [ "$status" -eq 0 ] && echo "ok   sentry exits cleanly at end of input" ||

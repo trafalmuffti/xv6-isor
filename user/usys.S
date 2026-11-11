@@ -34,5 +34,6 @@ SYSCALL(getpid)
 SYSCALL(sbrk)
 SYSCALL(sleep)
 SYSCALL(uptime)
+SYSCALL(getprocs)
 
 .section .note.GNU-stack,"",@progbits

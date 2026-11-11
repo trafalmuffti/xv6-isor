@@ -65,8 +65,15 @@ func sysRead(k *Kernel, p *Proc, r *syscall.PtraceRegs) result {
 		})
 	case fdInode:
 		if f.isDir {
-			b := f.dir[min(f.off, len(f.dir)):]
-			cnt := min(len(b), n)
+			off := f.off
+			if off > len(f.dir) {
+				off = len(f.dir)
+			}
+			b := f.dir[off:]
+			cnt := len(b)
+			if cnt > n {
+				cnt = n
+			}
 			f.off += cnt
 			return ret(deliver(b, int64(cnt)))
 		}

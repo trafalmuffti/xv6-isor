@@ -28,7 +28,8 @@ console        3 566500 0
 
 * Linux on x86-64, kernel 5.6 or newer (for `openat2` and
   `PTRACE_GET_SYSCALL_INFO`)
-* Go 1.22 or newer, gcc and make
+* gcc, make, and a Go compiler: **gccgo** (the default; `apt install
+  gccgo`) or the standard Go toolchain, 1.22 or newer
 * ptrace must be allowed. A process can always trace its own children
   unless a seccomp profile or LSM blocks `ptrace` (in some containers you
   may need `--cap-add=SYS_PTRACE` or a relaxed seccomp profile).
@@ -36,7 +37,8 @@ console        3 566500 0
 ## Usage
 
 ```
-make                     # builds ./xv6-isor and the guest root ./fs
+make                     # builds ./xv6-isor (with gccgo) and the guest root ./fs
+make GOCOMPILER=gc       # same, but build the sentry with the standard go tool
 ./xv6-isor fs            # boot /init (which starts /sh) with ./fs as "/"
 ./xv6-isor -strace fs    # same, logging every guest system call
 make test                # end-to-end tests (test.sh + user/isortest.c)
@@ -56,6 +58,49 @@ Ctrl-D ends the shell and init starts a new one. Press Ctrl-C to stop the
 sentry. If standard input is a file or pipe, the sentry exits once the
 input runs out.
 
+The sentry builds with gccgo by default. If `gccgo` isn't installed,
+`make` prints a warning and uses the `go` tool instead. `GCCGO` and
+`GCCGOFLAGS` select a different gccgo binary or different flags. After
+changing `GOCOMPILER`, run `make clean` so the sentry is rebuilt. The code
+sticks to the Go 1.18 standard library that gccgo 13 provides, and makes
+its ptrace requests as raw system calls, so both compilers produce the
+same program.
+
+## Listing processes: `pslist`
+
+xv6 has no `ps`. xv6-isor adds one: the `pslist` program and the system
+call behind it, `getprocs(struct procinfo *table, int max)` (number 22).
+This is the only call outside xv6's list. It reports everything the
+sentry knows about each process, in guest terms:
+
+```
+$ pslist
+PID PPID STATE  WCHAN  MEM    CPU   AGE  BRK        NAME      FDS              CWD
+1   0    sleep  wait   180K   0.00  12   -          init      ccc              /
+2   1    sleep  wait   184K   0.00  12   -          sh        ccc              /d
+4   1    sleep  sleep  180K   0.00  3    -          zombie    ccc              /
+5   4    zombie -      -      0.00  3    -          zombie    -                /
+7   2    run    -      192K   0.00  0    -          pslist    ccc              /d
+```
+
+| column | meaning |
+|---|---|
+| PID, PPID | guest pids. Orphans are re-parented to init (1), as in xv6 |
+| STATE | `run` (in user code), `sleep` (blocked in a system call), `zombie` (exited, not yet `wait()`ed for), `dying` (killed) |
+| WCHAN | the system call a sleeping process is blocked in (`wait`, `read`, `write`, `sleep`) |
+| MEM | memory size |
+| CPU | CPU time used, in seconds |
+| AGE | seconds since the process was created |
+| BRK | program break once the process has called `sbrk` |
+| NAME, CWD | program name and current directory |
+| FDS | one letter per open descriptor: `c` console, `f` file, `d` directory, `r`/`w` pipe read/write end, `.` closed |
+
+Host details (host pids, host paths) are left out on purpose, so a guest
+learns nothing about the machine it runs on. MEM and CPU for live
+processes come from the host's `/proc/<pid>/{statm,stat}`, and CPU for
+zombies comes from the `rusage` that `wait4` returns. xv6 has no
+permission model, so any process can call `getprocs`, not just init.
+
 ## How it works
 
 ```
@@ -67,7 +112,7 @@ input runs out.
  ┌──────▼──────────▼──────────▼─────────────────────────────┐
  │  sentry (xv6-isor, Go)                                   │
  │   process table · fd tables · pipes · console · cwd      │
- │   syscall table (the 21 xv6 calls)                       │
+ │   syscall table (the 21 xv6 calls + getprocs)            │
  └──────┬───────────────────────────────────────────────────┘
         │ only system calls the sentry builds itself
  ┌──────▼───────────────────────────────────────────────────┐
@@ -122,6 +167,7 @@ xv6's `sleep()`/`wakeup()`.
 | `kill(pid)` | `SIGKILL` to the host process, which also wakes it if it's blocked in a pipe. |
 | `sleep` / `uptime` | Timers in the sentry. One tick is 10 ms. |
 | `getpid` `dup` `close` `pipe` | Pure sentry bookkeeping. |
+| `getprocs` *(isor extension)* | Copies a `struct procinfo` for each process into the caller's buffer (see [pslist](#listing-processes-pslist)). |
 
 ### Why the guest can't get out
 
@@ -159,11 +205,14 @@ sentry/            the user-mode kernel (Go)
   file.go          files, pipes, console (xv6 file.c, pipe.c, console.c)
   fs.go            root directory confinement, dirents, exec checks
   mem.go           copyin/copyout via process_vm_readv/writev
-  ptrace.go        ptrace helpers missing from package syscall
+  procinfo.go      getprocs() for pslist (isor extension)
+  ptrace.go        raw ptrace requests (identical under gc and gccgo)
 user/              guest programs, from MIT xv6 (x86 version)
   start.S usys.S   entry point and x86-64 syscall stubs (new)
   isortest.c       tests for every system call (new)
   sleep.c          tiny sleep(1) for trying kill (new)
+  pslist.c         process list via getprocs() (new)
+  procinfo.h       struct procinfo (new)
   *.c *.h          xv6 user programs and ulib (changes marked "isor:")
 test.sh            end-to-end tests
 ```
