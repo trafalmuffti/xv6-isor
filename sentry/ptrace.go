@@ -1,0 +1,47 @@
+package main
+
+// Thin wrappers around the ptrace(2) requests that Go's syscall package
+// does not provide.
+
+import (
+	"syscall"
+	"unsafe"
+)
+
+const (
+	// PTRACE_GET_SYSCALL_INFO (Linux 5.3+) tells us whether a syscall stop
+	// is an entry or an exit stop, and which syscall ABI (64-bit `syscall`
+	// vs. 32-bit `int $0x80`) the tracee used.
+	ptraceGetSyscallInfo = 0x420e
+
+	syscallInfoEntry = 1
+	syscallInfoExit  = 2
+
+	auditArchX86_64 = 0xc000003e
+
+	ptraceOExitKill = 0x100000 // kill tracees if the sentry dies
+
+	// Options set on the first process; children inherit them.
+	ptraceOptions = syscall.PTRACE_O_TRACESYSGOOD | // syscall stops report SIGTRAP|0x80
+		syscall.PTRACE_O_TRACEFORK | // auto-attach to children...
+		syscall.PTRACE_O_TRACEVFORK |
+		syscall.PTRACE_O_TRACECLONE |
+		syscall.PTRACE_O_TRACEEXEC | // ...and report execve
+		ptraceOExitKill
+
+	// Stop signal of a syscall stop when PTRACE_O_TRACESYSGOOD is set.
+	sigSyscallStop = syscall.SIGTRAP | 0x80
+)
+
+// syscallInfo returns the op (entry/exit) and audit arch of the current
+// syscall stop of pid.
+func syscallInfo(pid int) (op uint8, arch uint32, err error) {
+	// struct ptrace_syscall_info: u8 op; u8 pad[3]; u32 arch; ...
+	var buf [88]byte
+	_, _, e := syscall.Syscall6(syscall.SYS_PTRACE, ptraceGetSyscallInfo,
+		uintptr(pid), uintptr(len(buf)), uintptr(unsafe.Pointer(&buf[0])), 0, 0)
+	if e != 0 {
+		return 0, 0, e
+	}
+	return buf[0], *(*uint32)(unsafe.Pointer(&buf[4])), nil
+}
