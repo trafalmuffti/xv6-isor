@@ -209,6 +209,7 @@ each model would fit in xv6-isor.
 
 ```
 docs/
+  syscall-path.md     the life of one system call, with measured costs
   security-models.md  gVisor, root users, POSIX ACLs and SMACK, explained
 sentry/            the user-mode kernel (Go)
   main.go          command line
