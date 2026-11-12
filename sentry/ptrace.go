@@ -45,3 +45,38 @@ func syscallInfo(pid int) (op uint8, arch uint32, err error) {
 	}
 	return buf[0], *(*uint32)(unsafe.Pointer(&buf[4])), nil
 }
+
+// The ptrace requests below go straight to the raw system call rather
+// than through package syscall: gccgo's syscall package lacks some of
+// them (PtraceSyscall) and its libc-based wrappers misreport errors, so
+// this keeps the sentry identical under both Go compilers.
+func ptrace(req int, pid int, addr, data uintptr) error {
+	_, _, e := syscall.Syscall6(syscall.SYS_PTRACE, uintptr(req), uintptr(pid), addr, data, 0, 0)
+	if e != 0 {
+		return e
+	}
+	return nil
+}
+
+// ptraceSyscall resumes pid until its next syscall stop, delivering sig.
+func ptraceSyscall(pid int, sig syscall.Signal) error {
+	return ptrace(syscall.PTRACE_SYSCALL, pid, 0, uintptr(sig))
+}
+
+func ptraceSetOptions(pid int, options int) error {
+	return ptrace(syscall.PTRACE_SETOPTIONS, pid, 0, uintptr(options))
+}
+
+func ptraceGetEventMsg(pid int) (uint64, error) {
+	var msg uint64
+	err := ptrace(syscall.PTRACE_GETEVENTMSG, pid, 0, uintptr(unsafe.Pointer(&msg)))
+	return msg, err
+}
+
+func ptraceGetRegs(pid int, regs *syscall.PtraceRegs) error {
+	return ptrace(syscall.PTRACE_GETREGS, pid, 0, uintptr(unsafe.Pointer(regs)))
+}
+
+func ptraceSetRegs(pid int, regs *syscall.PtraceRegs) error {
+	return ptrace(syscall.PTRACE_SETREGS, pid, 0, uintptr(unsafe.Pointer(regs)))
+}

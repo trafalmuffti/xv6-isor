@@ -59,12 +59,18 @@ type Proc struct {
 	retval   int64                     // result to put in %rax at exit
 	exitHook func(*syscall.PtraceRegs) // for rewritten host syscalls
 	newborn  bool                      // expect the initial SIGSTOP
-	tracemsg string                    // -strace: the call being made
+	sysname  string                    // xv6 call in progress (pslist WCHAN)
+
+	// Accounting, reported by getprocs().
+	startTick uint32 // uptime tick at creation
+	cpuTicks  uint32 // CPU time once exited (from wait4's rusage)
+	tracemsg  string // -strace: the call being made
 }
 
 type waitEvent struct {
 	pid    int
 	status syscall.WaitStatus
+	rusage syscall.Rusage // CPU time of a process that exited
 }
 
 type Kernel struct {
@@ -99,8 +105,13 @@ func newKernel(fs *FS, console *Console, strace bool) *Kernel {
 	}
 }
 
+// ticks is xv6's global tick counter: clock ticks since the sentry started.
+func (k *Kernel) ticks() uint32 {
+	return uint32(time.Since(k.start) / tick)
+}
+
 func (k *Kernel) allocProc(hpid int) *Proc {
-	p := &Proc{pid: k.nextPid, hpid: hpid, cwd: "/"}
+	p := &Proc{pid: k.nextPid, hpid: hpid, cwd: "/", startTick: k.ticks()}
 	k.nextPid++
 	k.procs[p.pid] = p
 	k.byHost[hpid] = p
@@ -132,20 +143,24 @@ func (k *Kernel) Run(initPath string) {
 	go func() {
 		for {
 			var ws syscall.WaitStatus
-			pid, err := syscall.Wait4(-1, &ws, syscall.WALL, nil)
+			var ru syscall.Rusage
+			pid, err := syscall.Wait4(-1, &ws, syscall.WALL, &ru)
 			if err == syscall.EINTR {
 				continue
 			}
 			if err != nil {
 				return
 			}
-			k.events <- waitEvent{pid, ws}
+			k.events <- waitEvent{pid, ws, ru}
 		}
 	}()
 
 	for {
 		select {
 		case ev := <-k.events:
+			if p := k.byHost[ev.pid]; p != nil && (ev.status.Exited() || ev.status.Signaled()) {
+				p.cpuTicks = rusageTicks(&ev.rusage)
+			}
 			k.handleWait(ev.pid, ev.status)
 		case fn := <-k.work:
 			fn()
@@ -156,7 +171,7 @@ func (k *Kernel) Run(initPath string) {
 // resume continues a stopped guest until its next syscall stop,
 // delivering sig (0 for none).
 func (k *Kernel) resume(p *Proc, sig syscall.Signal) {
-	syscall.PtraceSyscall(p.hpid, int(sig)) // ESRCH if it was killed: fine
+	ptraceSyscall(p.hpid, sig) // ESRCH if it was killed: fine
 }
 
 func (k *Kernel) handleWait(hpid int, ws syscall.WaitStatus) {
@@ -188,7 +203,7 @@ func (k *Kernel) handleWait(hpid int, ws syscall.WaitStatus) {
 	case sig == syscall.SIGTRAP && !k.tracing:
 		// init's first stop, right after the host execve: configure
 		// tracing. Children inherit these options.
-		if err := syscall.PtraceSetOptions(hpid, ptraceOptions); err != nil {
+		if err := ptraceSetOptions(hpid, ptraceOptions); err != nil {
 			fatalf("PTRACE_SETOPTIONS: %v", err)
 		}
 		k.tracing = true
@@ -217,7 +232,7 @@ func (k *Kernel) handleWait(hpid int, ws syscall.WaitStatus) {
 func (k *Kernel) ptraceEvent(p *Proc, event int) {
 	switch event {
 	case syscall.PTRACE_EVENT_FORK, syscall.PTRACE_EVENT_VFORK, syscall.PTRACE_EVENT_CLONE:
-		msg, err := syscall.PtraceGetEventMsg(p.hpid)
+		msg, err := ptraceGetEventMsg(p.hpid)
 		if err == nil {
 			k.forkChild(p, int(msg))
 		}

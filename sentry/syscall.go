@@ -76,6 +76,9 @@ var syscalls = map[uint64]struct {
 	19: {"link", "ss", sysLink},
 	20: {"mkdir", "s", sysMkdir},
 	21: {"close", "i", sysClose},
+
+	// isor extension, not in xv6: lets the pslist program list processes.
+	22: {"getprocs", "pi", sysGetprocs},
 }
 
 // Argument helpers: xv6's argint/argaddr. The x86-64 calling convention
@@ -126,7 +129,7 @@ func (k *Kernel) syscallStop(p *Proc) {
 		return
 	}
 	var regs syscall.PtraceRegs
-	if err := syscall.PtraceGetRegs(p.hpid, &regs); err != nil {
+	if err := ptraceGetRegs(p.hpid, &regs); err != nil {
 		return // process vanished
 	}
 	switch op {
@@ -136,7 +139,7 @@ func (k *Kernel) syscallStop(p *Proc) {
 			// rewrites would mean something else entirely. Refuse.
 			fmt.Fprintf(os.Stderr, "pid %d %s: 32-bit system call -- kill proc\n", p.pid, p.name)
 			regs.Orig_rax = ^uint64(0)
-			syscall.PtraceSetRegs(p.hpid, &regs)
+			ptraceSetRegs(p.hpid, &regs)
 			k.killProc(p)
 			return
 		}
@@ -159,6 +162,7 @@ func (k *Kernel) syscallEnter(p *Proc, regs *syscall.PtraceRegs) {
 		if k.strace {
 			p.tracemsg = fmt.Sprintf("[%d %s] %s", p.pid, p.name, traceCall(p, regs, sc.name, sc.args))
 		}
+		p.sysname = sc.name
 		res = sc.fn(k, p, regs)
 	}
 
@@ -169,7 +173,7 @@ func (k *Kernel) syscallEnter(p *Proc, regs *syscall.PtraceRegs) {
 		regs.Orig_rax = ^uint64(0)
 		p.retval = res.val
 		p.exitHook = nil
-		if err := syscall.PtraceSetRegs(p.hpid, regs); err != nil {
+		if err := ptraceSetRegs(p.hpid, regs); err != nil {
 			return
 		}
 		if res.kind == resBlocked {
@@ -178,7 +182,7 @@ func (k *Kernel) syscallEnter(p *Proc, regs *syscall.PtraceRegs) {
 		}
 	case resHost:
 		p.exitHook = res.hook
-		if err := syscall.PtraceSetRegs(p.hpid, regs); err != nil {
+		if err := ptraceSetRegs(p.hpid, regs); err != nil {
 			return
 		}
 	}
@@ -196,7 +200,7 @@ func (k *Kernel) syscallExit(p *Proc, regs *syscall.PtraceRegs) {
 		fmt.Fprintf(os.Stderr, "%s = %d\n", p.tracemsg, int64(regs.Rax))
 		p.tracemsg = ""
 	}
-	syscall.PtraceSetRegs(p.hpid, regs)
+	ptraceSetRegs(p.hpid, regs)
 	k.resume(p, 0)
 }
 
@@ -255,7 +259,7 @@ func sysGetpid(k *Kernel, p *Proc, r *syscall.PtraceRegs) result {
 }
 
 func sysUptime(k *Kernel, p *Proc, r *syscall.PtraceRegs) result {
-	return ret(int64(time.Since(k.start) / tick))
+	return ret(int64(k.ticks()))
 }
 
 func sysSleep(k *Kernel, p *Proc, r *syscall.PtraceRegs) result {

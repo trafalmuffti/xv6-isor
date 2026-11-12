@@ -25,3 +25,6 @@
 #define SYS_link   19
 #define SYS_mkdir  20
 #define SYS_close  21
+
+// isor extension (not in xv6): list processes, used by pslist.
+#define SYS_getprocs 22
