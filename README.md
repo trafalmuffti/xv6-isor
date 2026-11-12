@@ -106,6 +106,22 @@ processes come from the host's `/proc/<pid>/{statm,stat}`, and CPU for
 zombies comes from the `rusage` that `wait4` returns. xv6 has no
 permission model, so any process can call `getprocs`, not just init.
 
+## Documentation
+
+The `docs/` directory explains how xv6-isor works and how each part
+compares to Linux and gVisor:
+
+- [syscall-path.md](docs/syscall-path.md) - the life of one system call,
+  with measured costs
+- [processes.md](docs/processes.md) - fork, exec, exit, wait
+- [memory.md](docs/memory.md) - sbrk, copy-on-write fork, demand paging
+- [filesystem.md](docs/filesystem.md) - path confinement, dirents, devices
+- [isolation-landscape.md](docs/isolation-landscape.md) - containers,
+  sandboxes and virtual machines
+- [breakout.md](docs/breakout.md) - what isolation it does and doesn't give
+- [security-models.md](docs/security-models.md) - gVisor, root users,
+  POSIX ACLs and SMACK
+
 ## How it works
 
 ```
@@ -193,7 +209,8 @@ xv6's `sleep()`/`wakeup()`.
   like xv6's `usertrap()`. Other host signals are dropped, because xv6
   has no signals.
 
-This is a teaching tool, not a security boundary. Real ptrace sandboxes
+This is a teaching tool, not a security boundary
+([docs/breakout.md](docs/breakout.md) analyzes the escapes in detail). Real ptrace sandboxes
 also have to deal with multi-threaded tracees changing syscall arguments
 after they are checked (xv6 has no threads), the vDSO, resource limits,
 and much more. gVisor's ptrace platform also keeps the sentry's state out
@@ -209,6 +226,12 @@ each model would fit in xv6-isor.
 
 ```
 docs/
+  syscall-path.md     the life of one system call, with measured costs
+  breakout.md         how a guest could escape, and what Linux does about it
+  processes.md        fork, exec, exit, wait in xv6-isor vs Linux and gVisor
+  memory.md           sbrk, copy-on-write fork, demand paging
+  filesystem.md       path confinement, dirents, device files
+  isolation-landscape.md  xv6-isor among containers, sandboxes and VMs
   security-models.md  gVisor, root users, POSIX ACLs and SMACK, explained
 sentry/            the user-mode kernel (Go)
   main.go          command line
