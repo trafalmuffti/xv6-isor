@@ -214,6 +214,7 @@ docs/
   breakout.md         how a guest could escape, and what Linux does about it
   processes.md        fork, exec, exit, wait in xv6-isor vs Linux and gVisor
   memory.md           sbrk, copy-on-write fork, demand paging
+  filesystem.md       path confinement, dirents, device files
   security-models.md  gVisor, root users, POSIX ACLs and SMACK, explained
 sentry/            the user-mode kernel (Go)
   main.go          command line
