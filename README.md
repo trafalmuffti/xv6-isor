@@ -193,7 +193,8 @@ xv6's `sleep()`/`wakeup()`.
   like xv6's `usertrap()`. Other host signals are dropped, because xv6
   has no signals.
 
-This is a teaching tool, not a security boundary. Real ptrace sandboxes
+This is a teaching tool, not a security boundary
+([docs/breakout.md](docs/breakout.md) analyzes the escapes in detail). Real ptrace sandboxes
 also have to deal with multi-threaded tracees changing syscall arguments
 after they are checked (xv6 has no threads), the vDSO, resource limits,
 and much more. gVisor's ptrace platform also keeps the sentry's state out
@@ -210,6 +211,7 @@ each model would fit in xv6-isor.
 ```
 docs/
   syscall-path.md     the life of one system call, with measured costs
+  breakout.md         how a guest could escape, and what Linux does about it
   security-models.md  gVisor, root users, POSIX ACLs and SMACK, explained
 sentry/            the user-mode kernel (Go)
   main.go          command line
