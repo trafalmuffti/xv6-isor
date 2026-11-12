@@ -1,8 +1,6 @@
-# Security models: gVisor, root users, POSIX ACLs and SMACK
+# Security models for gVisor, root users, POSIX ACLs and SMACK
 
-xv6 has no permissions at all. No process is ever told "Permission
-denied", and xv6-isor keeps it that way on purpose. This document
-explains the security models instead of adding them to the code:
+xv6 has no permissions at all. This document explains the security models instead of adding them to the code:
 
 1. [How any permission check works](#1-how-any-permission-check-works)
 2. [gVisor's security model](#2-gvisors-security-model)
