@@ -106,6 +106,22 @@ processes come from the host's `/proc/<pid>/{statm,stat}`, and CPU for
 zombies comes from the `rusage` that `wait4` returns. xv6 has no
 permission model, so any process can call `getprocs`, not just init.
 
+## Documentation
+
+The `docs/` directory explains how xv6-isor works and how each part
+compares to Linux and gVisor:
+
+- [syscall-path.md](docs/syscall-path.md) - the life of one system call,
+  with measured costs
+- [processes.md](docs/processes.md) - fork, exec, exit, wait
+- [memory.md](docs/memory.md) - sbrk, copy-on-write fork, demand paging
+- [filesystem.md](docs/filesystem.md) - path confinement, dirents, devices
+- [isolation-landscape.md](docs/isolation-landscape.md) - containers,
+  sandboxes and virtual machines
+- [breakout.md](docs/breakout.md) - what isolation it does and doesn't give
+- [security-models.md](docs/security-models.md) - gVisor, root users,
+  POSIX ACLs and SMACK
+
 ## How it works
 
 ```
@@ -215,6 +231,7 @@ docs/
   processes.md        fork, exec, exit, wait in xv6-isor vs Linux and gVisor
   memory.md           sbrk, copy-on-write fork, demand paging
   filesystem.md       path confinement, dirents, device files
+  isolation-landscape.md  xv6-isor among containers, sandboxes and VMs
   security-models.md  gVisor, root users, POSIX ACLs and SMACK, explained
 sentry/            the user-mode kernel (Go)
   main.go          command line
