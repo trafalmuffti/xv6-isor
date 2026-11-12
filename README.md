@@ -199,9 +199,17 @@ after they are checked (xv6 has no threads), the vDSO, resource limits,
 and much more. gVisor's ptrace platform also keeps the sentry's state out
 of the application's address space entirely, using stub processes.
 
+xv6 has no users or permissions, and xv6-isor doesn't add any.
+[docs/security-models.md](docs/security-models.md) explains how gVisor
+protects the host, what "root" means in and around a gVisor sandbox, how
+POSIX permissions and ACLs work, and how SMACK works. It also covers where
+each model would fit in xv6-isor.
+
 ## Layout
 
 ```
+docs/
+  security-models.md  gVisor, root users, POSIX ACLs and SMACK, explained
 sentry/            the user-mode kernel (Go)
   main.go          command line
   kernel.go        process table, ptrace event loop, fork/exit/wait
