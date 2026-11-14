@@ -121,6 +121,10 @@ compares to Linux and gVisor:
 - [breakout.md](docs/breakout.md) - what isolation it does and doesn't give
 - [security-models.md](docs/security-models.md) - gVisor, root users,
   POSIX ACLs and SMACK
+- [lessons/shell-and-init/](docs/lessons/shell-and-init/README.md) - a
+  ten-lesson plan for extending `sh` and `init` into a Research UNIX and
+  BSD style system: exit status, a scripting shell, `/etc/rc`, `rc.d`
+  and supervision
 
 ## How it works
 
@@ -233,6 +237,7 @@ docs/
   filesystem.md       path confinement, dirents, device files
   isolation-landscape.md  xv6-isor among containers, sandboxes and VMs
   security-models.md  gVisor, root users, POSIX ACLs and SMACK, explained
+  lessons/shell-and-init/  lesson plan: a scripting sh and an rc-style init
 sentry/            the user-mode kernel (Go)
   main.go          command line
   kernel.go        process table, ptrace event loop, fork/exit/wait
