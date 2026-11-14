@@ -133,8 +133,16 @@ locked down:
   device, with gVisor's own network stack.
 
 The project also has engineering rules meant to keep the Sentry itself
-safe: no cgo, all `unsafe` code isolated in files named `*unsafe.go`, few
-external imports, continuous fuzzing.
+safe: the Sentry process must be pure Go (*"No CGo is allowed"*), all
+`unsafe` code is isolated in files named `*unsafe.go`, few external
+imports are allowed, and the Sentry is fuzzed continuously.
+
+"Pure Go" describes the Sentry process, not the whole repository. gVisor
+also contains a small C and assembly stub for its systrap platform, which
+is compiled separately and embedded as a blob, and a large C++ system call
+test suite that runs inside the sandbox. See
+[breakout.md](breakout.md#4-a-sentry-bug-is-a-full-compromise) for
+details.
 
 ### Why gVisor is not "just a ptrace sandbox"
 

@@ -187,10 +187,46 @@ kernel-facing bug meets a second wall.
 ### 4. A sentry bug is a full compromise
 
 The sentry has no seccomp filter and your full rights (see
-[Threat model](#the-threat-model)). Go rules out memory corruption, but a
-*logic* bug, a path that skips `abspath`/`openat2`, a host fd leaked to a
-guest, is direct host access. gVisor's engineering rules (no cgo, all
-`unsafe` isolated, seccomp on the Sentry) exist for this.
+[Threat model](#the-threat-model)). Go removes most memory-corruption
+bugs, but not all of them: the sentry uses `unsafe` for a few raw-pointer
+calls (`sentry/mem.go`, `sentry/fs.go`, `sentry/ptrace.go`,
+`sentry/main.go`). And a *logic*
+bug in safe Go, a path that skips `abspath`/`openat2`, a host fd leaked to
+a guest, is direct host access.
+
+gVisor's answer is layered, and its "no cgo" rule is only one narrow piece
+of it. It is easy to misread, so here is exactly what it covers:
+
+- **The Sentry process is pure Go.** gVisor's security guide says: *"No
+  CGo is allowed. The Sentry must be a pure Go binary."* That keeps C code,
+  and libc with it, out of the one process that holds all the guest state
+  and makes the host calls. It does **not** mean the repository contains
+  no C.
+- **C and assembly exist, outside the Sentry's own code.**
+  - *The systrap stub.* The default platform runs application code in
+    stub threads, and the signal handler that catches each system call
+    there is written in C and assembly (`pkg/sentry/platform/systrap/sysmsg/`:
+    `sysmsg_lib.c`, `sighandler_amd64.c`, `syshandler_amd64.S` and others).
+    Bazel compiles it with a C toolchain into a freestanding position-
+    independent object, links it with a linker script, and the Go code
+    pulls the result in with `//go:embed` as a pre-built blob. So the Go
+    binary contains compiled C, but it is not linked through cgo and the
+    Sentry never calls into libc.
+  - *Go assembly.* Files such as `pkg/ring0/entry_amd64.s` and
+    `pkg/sentry/platform/kvm/bluepill_amd64.s` handle the KVM platform's
+    entry paths. They use Go's own assembler, which is part of the normal
+    Go build and not cgo.
+- **The large C++ code base is the test suite.** `test/syscalls/` holds a
+  Linux system call conformance suite written in C++ (its `BUILD` file
+  lists roughly 260 `syscall_test` targets). Those programs run *inside*
+  the sandbox as the application under test. They are not part of the
+  runtime and aren't linked into the Sentry.
+
+So the accurate statement is: the **Sentry** is pure Go, a small stub and
+some assembly sit beside it, and the C++ is test code. Pure Go narrows the
+Sentry's own bug classes; it doesn't remove the need for the other layers
+gVisor adds for this case: `unsafe` confined to `*unsafe.go` files,
+seccomp on the Sentry, namespaces, and the gofer.
 
 ### 5. Information leaks
 
@@ -274,7 +310,13 @@ these.
   `sentry/ptrace.go` (ptrace options), `sentry/sysfile.go` (`maxIO`),
   `user/isortest.c` (the sandbox tests).
 - gVisor: `g3doc/architecture_guide/security.md` (threat model,
-  defense-in-depth, "Is this just a ptrace sandbox?").
+  defense-in-depth, the "No CGo" rule, "Is this just a ptrace sandbox?").
+- gVisor's C, assembly and C++: `pkg/sentry/platform/systrap/sysmsg/`
+  (`BUILD` shows the C sources compiled with `cc_pie_obj` and linked into
+  a blob; `sysmsg_amd64.go` embeds it with `go:embed`),
+  `pkg/sentry/platform/systrap/README.md` (the stub signal handler),
+  `pkg/ring0/entry_amd64.s`, `pkg/sentry/platform/kvm/bluepill_amd64.s`,
+  and `test/syscalls/` (the C++ test suite and its `BUILD` file).
 - Manual pages: `openat2(2)` (`RESOLVE_IN_ROOT`, `RESOLVE_NO_MAGICLINKS`),
   `execveat(2)`, `ptrace(2)` (`PTRACE_O_EXITKILL`,
   `PTRACE_GET_SYSCALL_INFO`), `seccomp(2)`, `user_namespaces(7)`,
