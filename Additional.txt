@@ -1,0 +1,3 @@
+add wolf products to enable ip, ssl, and ssh. extend ssh to accept sshfs.
+tinycurl
+extend shell to use hashsums from wolfcrypt
